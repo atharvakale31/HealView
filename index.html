@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wolf & Sheep River Crossing</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <h1>Wolf & Sheep River Crossing</h1>
+        <p>
+          Enter the number of wolves and sheep. The solver finds the shortest safe
+          crossing plan and animates every move.
+        </p>
+      </header>
+
+      <section class="controls">
+        <div class="field">
+          <label for="wolves">Wolves</label>
+          <input id="wolves" type="number" min="0" max="10" value="3" />
+        </div>
+        <div class="field">
+          <label for="sheep">Sheep</label>
+          <input id="sheep" type="number" min="0" max="10" value="3" />
+        </div>
+        <div class="field">
+          <label for="speed">Animation speed</label>
+          <input id="speed" type="range" min="400" max="1500" step="100" value="900" />
+        </div>
+        <div class="buttons">
+          <button id="solve">Solve & Animate</button>
+          <button id="reset" class="secondary">Reset</button>
+        </div>
+        <p class="hint">
+          Boat capacity is two. Wolves can never outnumber sheep on either bank
+          unless there are zero sheep on that side.
+        </p>
+      </section>
+
+      <section class="river">
+        <div class="bank" id="leftBank">
+          <h2>Left Bank</h2>
+          <div class="population" id="leftPopulation"></div>
+        </div>
+        <div class="water">
+          <div class="boat" id="boat">
+            <div class="boat-seat" id="boatSeat"></div>
+          </div>
+        </div>
+        <div class="bank" id="rightBank">
+          <h2>Right Bank</h2>
+          <div class="population" id="rightPopulation"></div>
+        </div>
+      </section>
+
+      <section class="steps">
+        <h2>Solution Steps</h2>
+        <ol id="stepList"></ol>
+      </section>
+
+      <section class="status" id="status"></section>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
