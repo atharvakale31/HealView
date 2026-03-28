@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClaimsLab — US Healthcare Claims Data Lineage Simulator</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --card-2: #1f2630;
+      --text: #e6edf3;
+      --muted: #9da7b3;
+      --blue: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --yellow: #d29922;
+      --purple: #bc8cff;
+      --border: #30363d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 20% 0%, #182030 0%, var(--bg) 45%);
+    }
+    .app {
+      display: grid;
+      grid-template-columns: 320px 1fr 1.2fr;
+      grid-template-rows: auto 290px;
+      gap: 14px;
+      min-height: 100vh;
+      padding: 14px;
+    }
+    .card {
+      background: linear-gradient(180deg, var(--card) 0%, #111720 100%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      overflow: auto;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.02), 0 12px 24px rgba(0,0,0,0.25);
+    }
+    .title { font-weight: 650; letter-spacing: .2px; margin-bottom: 6px; }
+    .subtitle { color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+    .decision { grid-row: 1 / span 2; }
+    .lifecycle { grid-column: 2; }
+    .capture { grid-column: 3; }
+    .insights { grid-column: 2 / span 2; }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    select, input, button {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #3a4552;
+      background: #0f141d;
+      color: var(--text);
+      padding: 8px;
+      margin-bottom: 8px;
+    }
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    button { cursor: pointer; font-weight: 600; }
+    button:hover { filter: brightness(1.08); }
+    .btn-blue { border-color: #316ba8; background: #12325a; }
+    .btn-green { border-color: #267f3b; background: #183d23; }
+    .btn-red { border-color: #8f2f2a; background: #471f1d; }
+    .btn-yellow { border-color: #8d6a22; background: #45371a; }
+    .btn-purple { border-color: #6f4aa9; background: #2c1f42; }
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      margin-right: 5px;
+      border: 1px solid;
+    }
+    .pending { color: var(--yellow); border-color: #7f611f; background: #2b2517; }
+    .approved { color: var(--green); border-color: #2d7d3f; background: #13281a; }
+    .denied { color: var(--red); border-color: #8f2f2a; background: #351919; }
+    .process { color: var(--blue); border-color: #316ba8; background: #10253f; }
+    .insight { color: var(--purple); border-color: #6f4aa9; background: #241a34; }
+    .timeline {
+      border-left: 2px solid #314157;
+      margin-left: 10px;
+      padding-left: 12px;
+    }
+    .event {
+      margin: 10px 0;
+      padding-left: 8px;
+      position: relative;
+      border-left: 1px dashed #2f3d52;
+    }
+    .event::before {
+      content: "";
+      position: absolute;
+      left: -7px;
+      top: 4px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--blue);
+    }
+    .event small { color: var(--muted); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+    th, td {
+      border-bottom: 1px solid #2a3443;
+      padding: 6px 5px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { color: #9ab5d1; position: sticky; top: 0; background: #151d29; }
+    td[data-field], th[data-field] { cursor: pointer; }
+    td[data-field]:hover, th[data-field]:hover { background: #1f2a3a; }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .kpi {
+      background: var(--card-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px;
+      font-size: 12px;
+    }
+    .kpi b { display: block; font-size: 15px; margin-top: 4px; }
+    .insight-feed {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px;
+      background: #131b27;
+      min-height: 170px;
+    }
+    .legend { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+    #fieldOrigin {
+      white-space: pre-wrap;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #d4dbe6;
+    }
+    .foot { color: var(--muted); font-size: 11px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="card decision">
+      <div class="title">ClaimsLab — Decision Panel</div>
+      <div class="subtitle">Operational choices drive claim fields and downstream analytics.</div>
+
+      <label>Mode</label>
+      <select id="mode">
+        <option value="guided">Guided learning</option>
+        <option value="realistic">Realistic sandbox</option>
+      </select>
+
+      <label>Therapy archetype</label>
+      <select id="therapy">
+        <option value="infused">Infused Biologic (Medical Benefit)</option>
+        <option value="selfinject">Specialty Self Inject (Pharmacy Benefit)</option>
+        <option value="whitebag">White Bagging Scenario</option>
+      </select>
+
+      <label>Payer</label>
+      <select id="payer">
+        <option value="commercial">Commercial</option>
+        <option value="medicare">Medicare</option>
+        <option value="medicaid">Medicaid</option>
+      </select>
+
+      <label>Site of care</label>
+      <select id="site">
+        <option value="11">Physician Office (POS 11)</option>
+        <option value="22">Hospital Outpatient (POS 22)</option>
+        <option value="sp">Specialty Pharmacy</option>
+        <option value="home">Home Infusion</option>
+      </select>
+
+      <label>Diagnosis (ICD-10)</label>
+      <input id="diagnosis" value="K50.90" />
+
+      <label>Procedure / Product code (J-code or Rx)</label>
+      <input id="code" value="J1745" />
+
+      <label>Units / Quantity</label>
+      <input id="units" type="number" value="4" min="1" max="99" />
+
+      <label>Prior therapy failure documented?</label>
+      <select id="stepTherapy"><option value="yes">Yes</option><option value="no">No</option></select>
+
+      <div class="btn-row">
+        <button class="btn-blue" id="btnPA">Submit PA</button>
+        <button class="btn-yellow" id="btnClaim">Submit Claim</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn-red" id="btnFix">Correct & Resubmit</button>
+        <button class="btn-green" id="btnRestart">Restart</button>
+      </div>
+
+      <label>Perspective</label>
+      <select id="perspective">
+        <option value="provider">Provider</option>
+        <option value="payer">Payer</option>
+        <option value="pharmacy">Pharmacy</option>
+        <option value="patient">Patient</option>
+        <option value="vendor">Data vendor</option>
+      </select>
+
+      <div class="foot">Click any field in the tables to see lineage, missingness, and analytics use.</div>
+    </section>
+
+    <section class="card lifecycle">
+      <div class="title">Lifecycle Panel</div>
+      <div class="subtitle">Diagnosis → Benefit Verification → PA → Claim Submission → Adjudication → Payment → Database Capture</div>
+      <div class="kpis">
+        <div class="kpi">Day<b id="day">1</b></div>
+        <div class="kpi">PA Status<b id="paStatus">Pending</b></div>
+        <div class="kpi">Claim Status<b id="claimStatus">Not Submitted</b></div>
+        <div class="kpi">Current View<b id="viewMode">Guided</b></div>
+      </div>
+      <div>
+        <span class="status-chip process">Process</span>
+        <span class="status-chip approved">Approval</span>
+        <span class="status-chip denied">Denial</span>
+        <span class="status-chip pending">Pending</span>
+        <span class="status-chip insight">Insight</span>
+      </div>
+      <div class="timeline" id="timeline"></div>
+    </section>
+
+    <section class="card capture">
+      <div class="title">Data Capture Panel</div>
+      <div class="subtitle">Claims tables populate in real time from operational actions.</div>
+      <div class="legend">Medical Claims Header</div>
+      <table id="medicalHeader"></table>
+      <div class="legend">Medical Claims Line</div>
+      <table id="medicalLine"></table>
+      <div class="legend">Pharmacy Claims</div>
+      <table id="pharmacyClaims"></table>
+      <div class="legend">Eligibility</div>
+      <table id="eligibility"></table>
+    </section>
+
+    <section class="card insights">
+      <div class="title">Insights Panel</div>
+      <div class="subtitle">Operational insight + data insight + analytics insight at each stage.</div>
+      <div class="insight-feed">
+        <div class="panel">
+          <b>Step Insights</b>
+          <div id="stepInsights"></div>
+        </div>
+        <div class="panel">
+          <b>Field Origin Tracing</b>
+          <div id="fieldOrigin">Click a table header or value to inspect lineage.</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const refs = {
+      mode: document.getElementById('mode'), therapy: document.getElementById('therapy'), payer: document.getElementById('payer'), site: document.getElementById('site'),
+      diagnosis: document.getElementById('diagnosis'), code: document.getElementById('code'), units: document.getElementById('units'), stepTherapy: document.getElementById('stepTherapy'),
+      day: document.getElementById('day'), paStatus: document.getElementById('paStatus'), claimStatus: document.getElementById('claimStatus'), viewMode: document.getElementById('viewMode'),
+      timeline: document.getElementById('timeline'), medicalHeader: document.getElementById('medicalHeader'), medicalLine: document.getElementById('medicalLine'),
+      pharmacyClaims: document.getElementById('pharmacyClaims'), eligibility: document.getElementById('eligibility'), stepInsights: document.getElementById('stepInsights'),
+      fieldOrigin: document.getElementById('fieldOrigin'), perspective: document.getElementById('perspective')
+    };
+
+    const fieldDictionary = {
+      claim_id: { origin: 'Payer claim processing system', meaning: 'Unique identifier for claim header', missing: 'Pre-adjudication operational events', use: 'Join line/header and track resubmissions' },
+      diagnosis_code: { origin: 'Provider coding on CMS-1500/UB-04', meaning: 'Reason for service / medical necessity', missing: 'Incomplete documentation or edits', use: 'Cohort inclusion and indication algorithms' },
+      place_of_service: { origin: 'Billing form POS coding', meaning: 'Where service occurred (11 office, 22 hospital)', missing: 'Institutional abstraction issues', use: 'Site-of-care analyses and cost benchmarks' },
+      j_code: { origin: 'HCPCS on medical claim line', meaning: 'Drug/procedure billed under medical benefit', missing: 'White bagging, samples, bridge programs', use: 'Exposure inference for infused biologics' },
+      ndc: { origin: 'NCPDP pharmacy transaction or NDC crosswalk on line', meaning: 'Exact dispensed product identifier', missing: 'Medical claims without NDC, cash pay, samples', use: 'Product-level exposure and switching' },
+      units: { origin: 'Provider-entered claim line quantity', meaning: 'Billable service units', missing: 'Rejected claims and extract limitations', use: 'Dose approximation and utilization intensity' },
+      days_supply: { origin: 'NCPDP field from quantity and intended regimen', meaning: 'Expected days medication lasts', missing: 'Cash pay, samples, non-claim fills', use: 'Adherence (PDC/MPR) and persistence' },
+      allowed_amount: { origin: 'Adjudication engine contract pricing', meaning: 'Negotiated reimbursable amount', missing: 'Denied/pended claims', use: 'Economic outcomes and allowed-based costing' },
+      paid_amount: { origin: 'Post-cost-share plan payment calculation', meaning: 'Plan liability after member responsibility', missing: 'Denied claims or reversals', use: 'Net payer spend analyses' },
+      claim_status: { origin: 'Adjudication result code', meaning: 'Final processing state', missing: 'Raw operational extracts before adjudication', use: 'Filter paid vs denied and denial loop analysis' }
+    };
+
+    const payerProfiles = {
+      commercial: { paRate: 0.72, deductible: 500, coinsurance: 0.2, copayRx: 75, plan: 'PPO' },
+      medicare: { paRate: 0.6, deductible: 240, coinsurance: 0.2, copayRx: 45, plan: 'Part B/D mix' },
+      medicaid: { paRate: 0.82, deductible: 0, coinsurance: 0.05, copayRx: 4, plan: 'State MCO' }
+    };
+
+    const state = {
+      day: 1,
+      patientId: 'PT10001',
+      pa: { status: 'Pending', submitted: false },
+      claim: { status: 'Not Submitted', submitted: false, deniedReason: '', claimId: '', lines: [] },
+      timeline: [],
+      insights: []
+    };
+
+    function seed() {
+      state.day = 1;
+      state.pa = { status: 'Pending', submitted: false };
+      state.claim = { status: 'Not Submitted', submitted: false, deniedReason: '', claimId: '', lines: [] };
+      state.timeline = [];
+      state.insights = [
+        'Operational: Every claim field is downstream of real workflow behavior.',
+        'Data: Claims data is a consequence of billing + adjudication, not clinical truth.',
+        'Analytics: Misinterpreting missingness can bias exposure and cost analyses.'
+      ];
+      addEvent('Day 1 diagnosis captured and benefit eligibility loaded.', 'process');
+      render();
+    }
+
+    function addEvent(text, tone='process') {
+      state.timeline.push({ day: state.day, text, tone });
+      state.day += Math.ceil(Math.random() * 4);
+    }
+
+    function submitPA() {
+      const diagnosis = refs.diagnosis.value.trim();
+      const stepOk = refs.stepTherapy.value === 'yes';
+      const payer = payerProfiles[refs.payer.value];
+      state.pa.submitted = true;
+
+      if (!diagnosis) {
+        state.pa.status = 'Denied';
+        state.claim.deniedReason = 'Missing diagnosis';
+        addEvent('PA denied: Missing diagnosis coding in submission.', 'denied');
+      } else if (!stepOk && Math.random() < 0.85) {
+        state.pa.status = 'Denied';
+        state.claim.deniedReason = 'Step therapy not met';
+        addEvent('PA denied: Step therapy criteria not documented.', 'denied');
+      } else if (Math.random() <= payer.paRate) {
+        state.pa.status = 'Approved';
+        addEvent('PA approved based on diagnosis + policy criteria.', 'approved');
+      } else {
+        state.pa.status = 'Denied';
+        state.claim.deniedReason = 'Medical necessity not demonstrated';
+        addEvent('PA denied: Medical necessity documentation insufficient.', 'denied');
+      }
+      state.insights.unshift(
+        `Operational: PA ${state.pa.status.toLowerCase()} influences downstream claim acceptance.`,
+        'Data: PA result often appears indirectly via denial reason/action history, not as a clean field.',
+        'Analytics: Excluding denied claims may hide access friction and bias time-to-therapy metrics.'
+      );
+      render();
+    }
+
+    function submitClaim(isResubmission = false) {
+      const therapy = refs.therapy.value;
+      const site = refs.site.value;
+      const diagnosis = refs.diagnosis.value.trim();
+      const code = refs.code.value.trim().toUpperCase();
+      const units = Number(refs.units.value || 0);
+      const payer = payerProfiles[refs.payer.value];
+      const isPharmacy = therapy === 'selfinject' || site === 'sp';
+
+      if (state.pa.status !== 'Approved' && !isPharmacy) {
+        state.claim.status = 'Denied';
+        state.claim.deniedReason = 'Missing PA';
+        addEvent('Claim denied: PA required before medical benefit billing.', 'denied');
+        render();
+        return;
+      }
+      if (!diagnosis) return deny('Invalid diagnosis');
+      if (units > 12) return deny('Units exceed limits');
+      if (site === '11' && refs.therapy.value === 'selfinject') return deny('Wrong POS');
+      if (therapy !== 'selfinject' && !code.startsWith('J')) return deny('Coding mismatch');
+
+      state.claim.claimId = `CLM-${Math.floor(100000 + Math.random() * 899999)}`;
+      const billed = isPharmacy ? 6800 : (site === '22' ? 12000 : 9500);
+      const allowed = Math.round(billed * (isPharmacy ? 0.78 : 0.71));
+      const deductibleApplied = Math.min(payer.deductible, Math.round(allowed * 0.1));
+      const coinsurance = Math.round((allowed - deductibleApplied) * payer.coinsurance);
+      const copay = isPharmacy ? payer.copayRx : 0;
+      const patientResp = deductibleApplied + coinsurance + copay;
+      const planPaid = Math.max(allowed - patientResp, 0);
+
+      state.claim.status = 'Paid';
+      state.claim.submitted = true;
+      state.claim.lines = [{
+        procedure: isPharmacy ? 'NCPDP-D0' : (site === '22' ? 'UB-04/837I' : 'CMS-1500/837P'),
+        j_code: isPharmacy ? '' : code,
+        ndc: therapy === 'selfinject' ? '0074-0123-02' : (therapy === 'whitebag' ? '' : '0006-3021-01'),
+        units,
+        revenue_code: site === '22' ? '0636' : '',
+        modifier: site === 'home' ? 'HN' : 'JW',
+        line_charge: billed,
+        line_payment: planPaid
+      }];
+      state.financials = { billed, allowed, deductibleApplied, coinsurance, copay, patientResp, planPaid };
+
+      addEvent(`${isResubmission ? 'Resubmitted claim paid' : 'Claim paid'}: Billed $${billed.toLocaleString()} → Allowed $${allowed.toLocaleString()} → Plan paid $${planPaid.toLocaleString()}.`, 'approved');
+      state.insights.unshift(
+        `Operational: ${isPharmacy ? 'NCPDP pharmacy' : 'medical benefit'} claim adjudicated with payer contract logic.`,
+        `Data: Allowed amount (${allowed}) differs from billed (${billed}); analytics should prefer allowed for spend comparability.`,
+        'Analytics: White bagging and bridge supply can break exposure inference from claim cost fields.'
+      );
+      render();
+
+      function deny(reason) {
+        state.claim.status = 'Denied';
+        state.claim.deniedReason = reason;
+        state.claim.submitted = true;
+        addEvent(`Claim denied: ${reason}.`, 'denied');
+        state.insights.unshift(
+          `Operational: Denial due to ${reason.toLowerCase()}.`,
+          'Data: Denied records still appear in many data assets and affect cohort logic.',
+          'Analytics: Include denial loops to avoid underestimating treatment initiation delays.'
+        );
+        render();
+      }
+    }
+
+    function fixAndResubmit() {
+      if (state.claim.status !== 'Denied') return;
+      if (!refs.diagnosis.value.trim()) refs.diagnosis.value = 'K50.90';
+      if (Number(refs.units.value) > 12) refs.units.value = 4;
+      if (refs.therapy.value !== 'selfinject' && !refs.code.value.trim().toUpperCase().startsWith('J')) refs.code.value = 'J1745';
+      if (state.claim.deniedReason === 'Wrong POS') refs.site.value = 'sp';
+      addEvent(`User corrected claim fields for denial reason: ${state.claim.deniedReason}.`, 'process');
+      submitClaim(true);
+    }
+
+    function buildTables() {
+      const therapy = refs.therapy.value;
+      const site = refs.site.value;
+      const payer = refs.payer.value;
+      const elig = [{ patient_id: state.patientId, payer: payer.toUpperCase(), plan_type: payerProfiles[payer].plan, coverage_start: '2026-01-01', coverage_end: '2026-12-31' }];
+      renderTable(refs.eligibility, elig);
+
+      const mh = state.claim.submitted ? [{
+        claim_id: state.claim.claimId,
+        patient_id: state.patientId,
+        diagnosis_code: refs.diagnosis.value || '',
+        place_of_service: site,
+        billing_npi: '1730192846',
+        rendering_npi: '1174008201',
+        total_charge: state.financials?.billed || '',
+        allowed_amount: state.financials?.allowed || '',
+        paid_amount: state.financials?.planPaid || '',
+        claim_status: state.claim.status
+      }] : [];
+      renderTable(refs.medicalHeader, mh);
+
+      const ml = state.claim.lines.length ? state.claim.lines.map((l, i) => ({
+        line_num: i + 1,
+        procedure_code: l.procedure,
+        j_code: l.j_code,
+        units: l.units,
+        revenue_code: l.revenue_code,
+        ndc: l.ndc,
+        modifier: l.modifier,
+        line_charge: l.line_charge,
+        line_payment: l.line_payment
+      })) : [];
+      renderTable(refs.medicalLine, ml);
+
+      const pc = (therapy === 'selfinject' || site === 'sp') && state.claim.submitted ? [{
+        patient_id: state.patientId,
+        ndc: '0074-0123-02',
+        fill_date: `2026-03-${String(Math.min(state.day, 28)).padStart(2, '0')}`,
+        days_supply: 28,
+        quantity: refs.units.value,
+        pharmacy_npi: '1457689120',
+        prescriber_npi: '1174008201',
+        copay: state.financials?.copay || '',
+        plan_paid: state.financials?.planPaid || '',
+        tier: 'Specialty Tier 5',
+        claim_status: state.claim.status
+      }] : [];
+      renderTable(refs.pharmacyClaims, pc);
+    }
+
+    function renderTable(el, rows) {
+      if (!rows.length) {
+        el.innerHTML = '<tr><td class="mono">No records yet.</td></tr>';
+        return;
+      }
+      const cols = Object.keys(rows[0]);
+      let html = '<tr>' + cols.map(c => `<th data-field="${c}">${c}</th>`).join('') + '</tr>';
+      html += rows.map(r => '<tr>' + cols.map(c => `<td data-field="${c}">${r[c]}</td>`).join('') + '</tr>').join('');
+      el.innerHTML = html;
+    }
+
+    function render() {
+      refs.day.textContent = state.day;
+      refs.paStatus.textContent = state.pa.status;
+      refs.claimStatus.textContent = state.claim.status;
+      refs.viewMode.textContent = refs.mode.value === 'guided' ? 'Guided' : 'Realistic';
+
+      refs.timeline.innerHTML = state.timeline.map(e => `<div class="event"><b>Day ${e.day}</b> <span class="status-chip ${e.tone}">${e.tone}</span><div>${e.text}</div></div>`).join('');
+      buildTables();
+
+      const perspectiveNotes = {
+        provider: 'Provider perspective: documentation completeness determines both denial risk and downstream data quality.',
+        payer: 'Payer perspective: adjudication edits and policy rules shape allowed amount and denial patterns.',
+        pharmacy: 'Pharmacy perspective: NCPDP transactions capture NDC, quantity, and days supply used in adherence analytics.',
+        patient: 'Patient perspective: deductible, coinsurance, and copay assistance may distort apparent out-of-pocket burden.',
+        vendor: 'Data vendor perspective: exposure and line-of-therapy are derived variables inferred from imperfect raw claims.'
+      };
+
+      const caveats = [
+        'White bagging: drug cost may not appear on medical claim even when administration occurs.',
+        'PSP replacement / bridge supply: exposure can occur with no payer claim record.',
+        '340B and acquisition cost: provider economics are generally invisible in claims.',
+        'Samples/cash pay: create missingness in claims-based adherence and persistence analyses.'
+      ];
+
+      refs.stepInsights.innerHTML = `
+        <p>${perspectiveNotes[refs.perspective.value]}</p>
+        <ul>${state.insights.slice(0, 6).map(i => `<li>${i}</li>`).join('')}</ul>
+        <b>Data quality caveats</b>
+        <ul>${caveats.map(c => `<li>${c}</li>`).join('')}</ul>
+      `;
+    }
+
+    document.body.addEventListener('click', (e) => {
+      const key = e.target?.dataset?.field;
+      if (!key || !fieldDictionary[key]) return;
+      const x = fieldDictionary[key];
+      refs.fieldOrigin.textContent = `Field: ${key}\n\nOrigin: ${x.origin}\nMeaning: ${x.meaning}\nMissing when: ${x.missing}\nUsed for: ${x.use}`;
+    });
+
+    refs.btnPA.addEventListener('click', submitPA);
+    refs.btnClaim.addEventListener('click', () => submitClaim(false));
+    refs.btnFix.addEventListener('click', fixAndResubmit);
+    refs.btnRestart.addEventListener('click', seed);
+    refs.mode.addEventListener('change', render);
+    refs.therapy.addEventListener('change', () => {
+      if (refs.therapy.value === 'selfinject') {
+        refs.code.value = 'NDC-SELFINJECT'; refs.site.value = 'sp'; refs.units.value = 1;
+      } else if (refs.therapy.value === 'whitebag') {
+        refs.code.value = 'J1745'; refs.site.value = '22'; refs.units.value = 4;
+      } else {
+        refs.code.value = 'J1745'; refs.site.value = '11'; refs.units.value = 4;
+      }
+      render();
+    });
+    refs.perspective.addEventListener('change', render);
+
+    seed();
+  </script>
+</body>
+</html>
